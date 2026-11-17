@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>KanbanFlow — Tablero Ágil Kanban con Métricas WIP</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar__brand">
+      <div class="brand-logo" aria-hidden="true">KF</div>
+      <div>
+        <h1>KanbanFlow</h1>
+        <p class="subtitle">Tablero Ágil con Límites WIP &amp; Métricas de Flujo</p>
+      </div>
+    </div>
+
+    <div class="topbar__actions">
+      <button type="button" id="btn-new-task" class="btn btn--primary">
+        + Nueva Tarjeta
+      </button>
+      <button type="button" id="btn-load-demo" class="btn btn--secondary">
+        Cargar Sprint Demo
+      </button>
+      <button type="button" id="btn-export-json" class="btn btn--outline">
+        Exportar JSON
+      </button>
+      <button type="button" id="btn-clear-board" class="btn btn--danger-outline" title="Vaciar tablero">
+        Limpiar
+      </button>
+    </div>
+  </header>
+
+  <!-- Banner global de alerta WIP -->
+  <div id="global-wip-alert" class="wip-banner hidden" role="alert" aria-live="polite"></div>
+
+  <main class="container">
+    <!-- Panel de Métricas de Flujo y Gráfico Canvas -->
+    <section class="metrics-dashboard" aria-label="Panel de Métricas de Flujo">
+      <div class="metrics-cards">
+        <article class="metric-card">
+          <span class="metric-card__label">Progreso del Sprint (Puntos)</span>
+          <div class="metric-card__value-row">
+            <strong id="metric-progress-pct" class="metric-card__value">0%</strong>
+            <span id="metric-progress-detail" class="metric-card__sub">0 / 0 pts</span>
+          </div>
+          <div class="progress-bar" aria-hidden="true">
+            <div id="metric-progress-bar" class="progress-bar__fill" style="width: 0%"></div>
+          </div>
+        </article>
+
+        <article class="metric-card">
+          <span class="metric-card__label">Lead Time Promedio</span>
+          <strong id="metric-lead-time" class="metric-card__value">—</strong>
+          <span class="metric-card__sub">Creación &rarr; Hecho</span>
+        </article>
+
+        <article class="metric-card">
+          <span class="metric-card__label">Cycle Time Promedio</span>
+          <strong id="metric-cycle-time" class="metric-card__value">—</strong>
+          <span class="metric-card__sub">En Curso &rarr; Hecho</span>
+        </article>
+
+        <article class="metric-card">
+          <span class="metric-card__label">Distribución Total</span>
+          <strong id="metric-total-cards" class="metric-card__value">0 tarjetas</strong>
+          <span id="metric-wip-summary" class="metric-card__sub">WIP activo: 0</span>
+        </article>
+      </div>
+
+      <div class="chart-panel">
+        <div class="chart-panel__header">
+          <h2>Distribución por Columna y Categoría</h2>
+          <div class="chart-legend" id="chart-legend">
+            <span class="legend-item"><i class="dot dot--frontend"></i>Frontend</span>
+            <span class="legend-item"><i class="dot dot--backend"></i>Backend</span>
+            <span class="legend-item"><i class="dot dot--algoritmos"></i>Algoritmos</span>
+            <span class="legend-item"><i class="dot dot--documentacion"></i>Documentación</span>
+          </div>
+        </div>
+        <div class="canvas-wrapper">
+          <canvas id="flow-chart" width="640" height="190" aria-label="Gráfico de barras de tarjetas por columna y categoría"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <!-- Barra de Filtros y Búsqueda -->
+    <section class="filters-bar" aria-label="Filtros del tablero">
+      <div class="filter-group filter-group--search">
+        <label for="filter-search" class="sr-only">Buscar tarjetas</label>
+        <input
+          type="search"
+          id="filter-search"
+          placeholder="Buscar por título o descripción..."
+          autocomplete="off"
+        />
+      </div>
+
+      <div class="filter-group">
+        <label for="filter-category">Categoría:</label>
+        <select id="filter-category">
+          <option value="ALL">Todas</option>
+          <option value="Frontend">Frontend</option>
+          <option value="Backend">Backend</option>
+          <option value="Algoritmos">Algoritmos</option>
+          <option value="Documentación">Documentación</option>
+        </select>
+      </div>
+
+      <div class="filter-group">
+        <label for="filter-priority">Prioridad:</label>
+        <select id="filter-priority">
+          <option value="ALL">Todas</option>
+          <option value="Alta">Alta</option>
+          <option value="Media">Media</option>
+          <option value="Baja">Baja</option>
+        </select>
+      </div>
+
+      <button type="button" id="btn-reset-filters" class="btn btn--ghost">
+        Limpiar filtros
+      </button>
+    </section>
+
+    <!-- Tablero Kanban de 4 Columnas -->
+    <section class="board" aria-label="Tablero Kanban">
+      <!-- Columna 1: Pendiente -->
+      <div class="column" data-column="Pendiente">
+        <header class="column__header">
+          <div class="column__title-group">
+            <span class="column__dot column__dot--todo"></span>
+            <h2>Pendiente</h2>
+            <span class="column__count" id="count-Pendiente">0</span>
+          </div>
+          <span class="column__points" id="points-Pendiente">0 pts</span>
+        </header>
+        <div class="column__dropzone" id="col-Pendiente" data-column="Pendiente"></div>
+      </div>
+
+      <!-- Columna 2: En Curso (con WIP configurable) -->
+      <div class="column" data-column="En Curso" id="column-wrapper-En Curso">
+        <header class="column__header">
+          <div class="column__title-group">
+            <span class="column__dot column__dot--progress"></span>
+            <h2>En Curso</h2>
+            <span class="column__count" id="count-En Curso">0</span>
+          </div>
+          <div class="wip-control" title="Límite máximo de tarjetas simultáneas en En Curso">
+            <label for="wip-En Curso">WIP:</label>
+            <input type="number" id="wip-En Curso" data-wip-col="En Curso" min="1" max="20" value="3" />
+          </div>
+        </header>
+        <div class="column__wip-alert hidden" id="wip-alert-En Curso">
+          ⚠️ Límite WIP excedido
+        </div>
+        <div class="column__dropzone" id="col-En Curso" data-column="En Curso"></div>
+      </div>
+
+      <!-- Columna 3: Revisión (con WIP configurable) -->
+      <div class="column" data-column="Revisión" id="column-wrapper-Revisión">
+        <header class="column__header">
+          <div class="column__title-group">
+            <span class="column__dot column__dot--review"></span>
+            <h2>Revisión</h2>
+            <span class="column__count" id="count-Revisión">0</span>
+          </div>
+          <div class="wip-control" title="Límite máximo de tarjetas simultáneas en Revisión">
+            <label for="wip-Revisión">WIP:</label>
+            <input type="number" id="wip-Revisión" data-wip-col="Revisión" min="1" max="20" value="2" />
+          </div>
+        </header>
+        <div class="column__wip-alert hidden" id="wip-alert-Revisión">
+          ⚠️ Límite WIP excedido
+        </div>
+        <div class="column__dropzone" id="col-Revisión" data-column="Revisión"></div>
+      </div>
+
+      <!-- Columna 4: Hecho -->
+      <div class="column" data-column="Hecho">
+        <header class="column__header">
+          <div class="column__title-group">
+            <span class="column__dot column__dot--done"></span>
+            <h2>Hecho</h2>
+            <span class="column__count" id="count-Hecho">0</span>
+          </div>
+          <span class="column__points" id="points-Hecho">0 pts</span>
+        </header>
+        <div class="column__dropzone" id="col-Hecho" data-column="Hecho"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal Crear / Editar Tarjeta -->
+  <dialog id="task-modal" class="modal">
+    <form id="task-form" class="modal__content" method="dialog">
+      <header class="modal__header">
+        <h3 id="modal-title">Nueva Tarjeta</h3>
+        <button type="button" id="btn-close-modal" class="btn-icon" aria-label="Cerrar modal">&times;</button>
+      </header>
+
+      <input type="hidden" id="task-id" />
+
+      <div class="form-group">
+        <label for="task-title">Título *</label>
+        <input type="text" id="task-title" required maxlength="90" placeholder="Ej. Implementar autenticación JWT" />
+      </div>
+
+      <div class="form-group">
+        <label for="task-desc">Descripción breve</label>
+        <textarea id="task-desc" rows="3" maxlength="280" placeholder="Criterios de aceptación o notas técnicas..."></textarea>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="task-category">Etiqueta / Categoría</label>
+          <select id="task-category" required>
+            <option value="Frontend">Frontend</option>
+            <option value="Backend">Backend</option>
+            <option value="Algoritmos">Algoritmos</option>
+            <option value="Documentación">Documentación</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="task-priority">Prioridad</label>
+          <select id="task-priority" required>
+            <option value="Alta">Alta</option>
+            <option value="Media" selected>Media</option>
+            <option value="Baja">Baja</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group">
+          <label for="task-points">Puntos de Esfuerzo</label>
+          <select id="task-points" required>
+            <option value="1">1 pt (Trivial)</option>
+            <option value="2">2 pts (Pequeña)</option>
+            <option value="3" selected>3 pts (Estándar)</option>
+            <option value="5">5 pts (Compleja)</option>
+            <option value="8">8 pts (Épica)</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label for="task-column">Columna Inicial / Actual</label>
+          <select id="task-column" required>
+            <option value="Pendiente">Pendiente</option>
+            <option value="En Curso">En Curso</option>
+            <option value="Revisión">Revisión</option>
+            <option value="Hecho">Hecho</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="task-timestamps-preview" class="timestamps-box hidden"></div>
+
+      <footer class="modal__footer">
+        <button type="button" id="btn-cancel-modal" class="btn btn--ghost">Cancelar</button>
+        <button type="submit" class="btn btn--primary">Guardar Tarjeta</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
